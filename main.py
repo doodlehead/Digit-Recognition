@@ -13,23 +13,17 @@ BIG_IMG_SIZE = 50
 parser = argparse.ArgumentParser(description='Digit Recognizer')
 parser.add_argument('-p', default=False, action='store_true', help='Run image preprocessing')
 parser.add_argument('-c', default=False, action='store_true', help='Run freeman code computation')
+parser.add_argument('-s', type=str, help='The file to run the prediction on')
 
 
-def process_image(image_data: pd.Series) -> Tuple[int, np.ndarray]:
+def process_image(image: np.ndarray) -> np.ndarray:
     """
-    Apply processing steps an image in the pd.Series format and return the result
-    :param name:
-    :param image_data:
-    :return:
+    Apply processing steps an image in the np.ndarray format and return the result
+    :param image: The image in np.ndarray format
+    :return: A tuple containing the label and processed image
     """
-    label = image_data[0]
-    pixel_data = image_data[1:]
-
-    # Convert to 2d image format
-    img_np = pixel_data.to_numpy(dtype=np.uint8).reshape((28, 28))
-
     # Thresholding
-    _, img_np = cv.threshold(img_np, 120, 255, cv.THRESH_BINARY)
+    _, img_np = cv.threshold(image, 120, 255, cv.THRESH_BINARY)
 
     # Crop
     coords = cv.findNonZero(img_np)
@@ -45,11 +39,31 @@ def process_image(image_data: pd.Series) -> Tuple[int, np.ndarray]:
     # Normalize size
     resize = cv.resize(border, dsize=(BIG_IMG_SIZE, BIG_IMG_SIZE))
 
-    return label, resize
+    return resize
+
+
+def process_image_series(image_data: pd.Series) -> Tuple[int, np.ndarray]:
+    """
+    Apply processing steps an image in the pd.Series format and return the result
+    :param image_data: A Series containing the label and the pixel data for a digit
+    :return: A tuple containing the label and processed image
+    """
+    label = image_data[0]
+    pixel_data = image_data[1:]
+
+    # Convert to 2d image format
+    img_np = pixel_data.to_numpy(dtype=np.uint8).reshape((28, 28))
+
+    return label, process_image(img_np)
 
 
 def preprocess_data(data: pd.DataFrame, output_name: str) -> None:
-    """Preprocess the data and then saves it as a CSV file for later use"""
+    """
+    Preprocess the data and then saves it as a CSV file for later use
+    :param data: The data to process
+    :param output_name: The name of the file to save to
+    :return: None
+    """
     # load training data, each row is an image
 
     # Create column labels for the DataFrame
@@ -58,9 +72,10 @@ def preprocess_data(data: pd.DataFrame, output_name: str) -> None:
         column_labels.append(f'pixel{i}')
 
     row_list = []
+    count = 0
 
     for index, row in data.iterrows():
-        label, img = process_image(row)
+        label, img = process_image_series(row)
         values = np.insert(img.flatten(), 0, label)
 
         new_row = dict(zip(column_labels, values))
@@ -203,9 +218,9 @@ def compute_distances(codes: pd.DataFrame, selected_code: str) -> List[dict]:
 def custom_KNN(codes: pd.DataFrame, selected_code: str) -> int:
     """
     Custom implmentation of the K-Nearest-Neighbors algorithm
-    :param codes:
-    :param selected_code:
-    :return:
+    :param codes: DataFrame containing labels and Freeman codes
+    :param selected_code: The Freeman code to compute the distances to
+    :return: The most common label of the K nearest neighbors (the prediction result)
     """
     distances = compute_distances(codes, selected_code)
     sorted_dists = sorted(distances, key=lambda item: item['distance'])
@@ -252,6 +267,21 @@ if __name__ == '__main__':
 
     # Compute Levenshtein distance for stored Freeman Codes
     train_codes = pd.read_csv('data/freeman_codes_train.csv')
+
+    if args.s:
+        """Demo entire process on a single image file"""
+        # Read in image file
+        single_img = cv.imread(args.s, cv.IMREAD_GRAYSCALE)
+        # Run preprocessing steps
+        processed = process_image(single_img)
+        # Compute Freeman code
+        f_code = get_freeman_code(processed)
+        # Run KNN classifier
+        pred = custom_KNN(train_codes, f_code)
+        # Print prediction
+        print(f'Prediction: {pred}')
+        sys.exit(0)
+
     test_codes = pd.read_csv('data/freeman_codes_test.csv')
 
     log('Starting test set predictions')
