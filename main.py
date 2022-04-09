@@ -1,10 +1,8 @@
 import sys
-import numpy
 import numpy as np
 import pandas as pd
 import cv2 as cv
-from sklearn import neighbors
-from typing import List, Tuple
+from typing import List
 import argparse
 import Levenshtein
 from collections import Counter
@@ -25,15 +23,8 @@ def process_image(name: str, image_data: pd.Series):
     # Convert to 2d image format
     img_np = pixel_data.to_numpy(dtype=np.uint8).reshape((28, 28))
 
-    # i1 = cv.resize(img_np, dsize=(BIG_IMG_SIZE, BIG_IMG_SIZE), interpolation=cv.INTER_NEAREST_EXACT)
-    # cv.imwrite(f"report_imgs/{name}_original.png", i1)
-
     # Thresholding
     _, img_np = cv.threshold(img_np, 120, 255, cv.THRESH_BINARY)
-    # img_np = cv.adaptiveThreshold(img_np, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 5, 2)
-
-    # i2 = cv.resize(img_np, dsize=(BIG_IMG_SIZE, BIG_IMG_SIZE), interpolation=cv.INTER_NEAREST_EXACT)
-    # cv.imwrite(f"report_imgs/{name}_thresholded.png", i2)
 
     # Crop
     coords = cv.findNonZero(img_np)
@@ -43,22 +34,10 @@ def process_image(name: str, image_data: pd.Series):
     cropped = img_np[y:min(27, y + min_size),
               max(0, cx - min_size // 2):min(27, cx + min_size // 2)]
 
-    # i3 = cv.resize(cropped, dsize=(BIG_IMG_SIZE, BIG_IMG_SIZE), interpolation=cv.INTER_NEAREST_EXACT)
-    # cv.imwrite(f"report_imgs/{name}_cropped.png", i3)
-
     border = cv.copyMakeBorder(cropped, 1, 1, 1, 1, cv.BORDER_CONSTANT, value=0)
-
-    # i4 = cv.resize(border, dsize=(BIG_IMG_SIZE, BIG_IMG_SIZE), interpolation=cv.INTER_NEAREST_EXACT)
-    # cv.imwrite(f"report_imgs/{name}_border.png", i4)
 
     # Normalize size
     resize = cv.resize(border, dsize=(BIG_IMG_SIZE, BIG_IMG_SIZE))
-
-    # i5 = cv.resize(resize, dsize=(100, 100), interpolation=cv.INTER_NEAREST_EXACT)
-    # cv.imwrite(f"report_imgs/{name}_resize.png", i5)
-    # cv.waitKey(0)
-
-    # cv.imwrite(f'data/processed/{name}.jpg', resize)
 
     return label, resize
 
@@ -84,7 +63,6 @@ def preprocess_data(data: pd.DataFrame, output_name: str) -> None:
     # Save as csv
     processed = pd.DataFrame(row_list, columns=column_labels)
     processed.to_csv(output_name)
-    # print(processed)
 
 
 def get_value(arr, row, col):
@@ -100,8 +78,6 @@ def get_freeman_code(img: np.ndarray) -> str:
     contours, hierarchy = cv.findContours(img, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
     outline = np.zeros((BIG_IMG_SIZE, BIG_IMG_SIZE), dtype=np.uint8)
     cv.drawContours(outline, contours, -1, (255, 255, 255))
-
-    # cv.imwrite('CV_contours.png', outline)
 
     start = (-1, -1)
     h, w = img.shape
@@ -121,8 +97,6 @@ def get_freeman_code(img: np.ndarray) -> str:
     if start == (-1, -1):
         print('Something went wrong, cannot find edge')
         pass
-    # else:
-    #     print(f'Found edge at: {start}')
 
     # Iterate over the edge
     iter_count = 0
@@ -130,9 +104,7 @@ def get_freeman_code(img: np.ndarray) -> str:
     cx, cy = start
     code = ''
 
-    # DEBUG
     visited: set[tuple[int, int]] = set()
-    # debug = np.zeros((BIG_IMG_SIZE, BIG_IMG_SIZE), dtype=numpy.uint8)
 
     while iter_count < max_limit:
         d = 1  # distance away to check
@@ -167,18 +139,11 @@ def get_freeman_code(img: np.ndarray) -> str:
                 cy, cx = cy - d, cx - d
             else:
                 # We've reached the start again
-                # print('Reached the start!')
-                # cv.imshow('original', img)
-                # cv.imshow('covered', debug)
-                # cv.waitKey(0)
                 return code
 
-        # debug[cy, cx] = 255
         visited.add((cy, cx))
-
         iter_count += 1
 
-    # cv.imwrite('FreemanCode.png', debug)
     return code
 
 
@@ -230,15 +195,6 @@ def custom_KNN(codes: pd.DataFrame, selected_code: str):
     sorted_dists = sorted(distances, key=lambda item: item['distance'])
     counts = Counter(map(lambda x: x['digit'], sorted_dists[:10]))
     guess = max(counts, key=counts.get)
-
-    # if sel_digit != guess:
-        # print(counts)
-        # print(f'Expected: {sel_digit}\n')
-        # print(sorted_dists)
-
-        # pixel_data = processed_test.iloc[index][2:]
-        # digit_img = pixel_data.to_numpy(dtype=np.uint8).reshape((BIG_IMG_SIZE, BIG_IMG_SIZE))
-        # cv.imwrite(f'data/errors/{index}.jpg', digit_img)
 
     return guess
 
@@ -309,12 +265,5 @@ if __name__ == '__main__':
 
     print(f'Total accuracy: {1000-total_wrong}/1000 ({(1000-total_wrong)/1000})')
     print(wrong)
-
-        # Debug output
-        # pixel_data = processed_test.iloc[index][2:]
-        # digit_img = pixel_data.to_numpy(dtype=np.uint8).reshape((BIG_IMG_SIZE, BIG_IMG_SIZE))
-        #
-        # cv.imshow('digit', digit_img)
-        # cv.waitKey()
 
     log('Finished evaluating test data')
