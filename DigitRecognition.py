@@ -72,7 +72,6 @@ def preprocess_data(data: pd.DataFrame, output_name: str) -> None:
         column_labels.append(f'pixel{i}')
 
     row_list = []
-    count = 0
 
     for index, row in data.iterrows():
         label, img = process_image_series(row)
