@@ -2,7 +2,7 @@ import sys
 import numpy as np
 import pandas as pd
 import cv2 as cv
-from typing import List
+from typing import List, Tuple
 import argparse
 import Levenshtein
 from collections import Counter
@@ -15,8 +15,13 @@ parser.add_argument('-p', default=False, action='store_true', help='Run image pr
 parser.add_argument('-c', default=False, action='store_true', help='Run freeman code computation')
 
 
-def process_image(name: str, image_data: pd.Series):
-    """Apply processing steps an image in the pd.Series format and return the result"""
+def process_image(image_data: pd.Series) -> Tuple[int, np.ndarray]:
+    """
+    Apply processing steps an image in the pd.Series format and return the result
+    :param name:
+    :param image_data:
+    :return:
+    """
     label = image_data[0]
     pixel_data = image_data[1:]
 
@@ -34,6 +39,7 @@ def process_image(name: str, image_data: pd.Series):
     cropped = img_np[y:min(27, y + min_size),
               max(0, cx - min_size // 2):min(27, cx + min_size // 2)]
 
+    # Add a border
     border = cv.copyMakeBorder(cropped, 1, 1, 1, 1, cv.BORDER_CONSTANT, value=0)
 
     # Normalize size
@@ -54,18 +60,25 @@ def preprocess_data(data: pd.DataFrame, output_name: str) -> None:
     row_list = []
 
     for index, row in data.iterrows():
-        label, img = process_image(f'{index}', row)
+        label, img = process_image(row)
         values = np.insert(img.flatten(), 0, label)
 
-        row = dict(zip(column_labels, values))
-        row_list.append(row)
+        new_row = dict(zip(column_labels, values))
+        row_list.append(new_row)
 
     # Save as csv
     processed = pd.DataFrame(row_list, columns=column_labels)
     processed.to_csv(output_name)
 
 
-def get_value(arr, row, col):
+def get_value(arr: np.ndarray, row: int, col: int) -> any:
+    """
+    Helper function to get a value from a 2D array returning 0 if out of bounds.
+    :param arr: The array to access
+    :param row: The row index
+    :param col: The column index
+    :return: The retrieved value at [row, column] or 0 if out of bounds
+    """
     y, x = arr.shape
     if (row < 0 or row >= y) or (col < 0 or col >= x):
         return 0
@@ -73,8 +86,11 @@ def get_value(arr, row, col):
 
 
 def get_freeman_code(img: np.ndarray) -> str:
-    """Computes the Freeman code for an image"""
-
+    """
+    Computes the Freeman code for an image
+    :param img: An image of a digit
+    :return: The computed Freeman code as a string
+    """
     contours, hierarchy = cv.findContours(img, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
     outline = np.zeros((BIG_IMG_SIZE, BIG_IMG_SIZE), dtype=np.uint8)
     cv.drawContours(outline, contours, -1, (255, 255, 255))
@@ -173,7 +189,7 @@ def compute_distances(codes: pd.DataFrame, selected_code: str) -> List[dict]:
     :param selected_code: The selected freeman code to compute distances to
     :return: An array of Levenshtein distances
     """
-    distances = []
+    distances: List[dict] = []
     # Calculate Levenshtein distances for every stored digit
     for index, row in codes.iterrows():
         dist = Levenshtein.distance(row[1], selected_code)
@@ -184,7 +200,7 @@ def compute_distances(codes: pd.DataFrame, selected_code: str) -> List[dict]:
     return distances
 
 
-def custom_KNN(codes: pd.DataFrame, selected_code: str):
+def custom_KNN(codes: pd.DataFrame, selected_code: str) -> int:
     """
     Custom implmentation of the K-Nearest-Neighbors algorithm
     :param codes:
