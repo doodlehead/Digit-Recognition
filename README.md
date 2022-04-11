@@ -8,6 +8,8 @@ Github repo: https://github.com/doodlehead/Digit-Recognition
   - Make sure your version of Python comes with pip, it will be used to install the dependencies
 - Navigate to the top level of the project folder where the `requirements.txt` file is found and install the python dependencies using the command:
   - `pip install -r requirements.txt`
+- I highly recommend the use of a Python Virtual Environment, the OpenCV python library is quite sensitive to version changes
+  - See here: https://docs.python.org/3/library/venv.html
 
 ## How to run
 - The complete dataset is NOT included in the submission as specified in the instructions
